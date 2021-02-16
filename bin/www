@@ -1,0 +1,404 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('survivor:server');
+var http = require('http');
+var socketIO = require('socket.io');
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '8000');
+console.log('PORT', port)
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+var io = socketIO(server);
+//var MAX_PLAYER = '2';
+
+var calculateDistance = function calculateDistance(x1, x2, y1, y2) {
+  return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+}
+
+//const OPS = 'darknight';
+
+var Coin = function(game) {
+  const numberOfTilesX = game.layers[0][0].length - 4;
+  const numberOfTilesY = game.layers[0].length - 4;
+  this.x = Math.floor((Math.random() * numberOfTilesX * 64) + 128);
+  this.y = Math.floor((Math.random() * numberOfTilesY * 64) + 128);
+  this.collected = false;
+};
+
+var Player = function(game, id, type) {
+  this.game = game;
+  this.id = id;
+  this.isDead = false;
+  this.moderator = false;
+  this.name = '';
+  this.health = 100;
+  this.type = Math.floor(Math.random() * 5);
+  this.hborder = 'black';
+  this.hbar = 50;
+  this.nbar = 10;
+  this.mycolor = 'lightgreen';
+  this.ucolor = 'red';
+  this.score = 1 - 1;
+
+  // pozisyon degerleri
+  this.x = Math.floor(Math.random() * 400 + 100);
+  this.y = Math.floor(Math.random() * 300 + 100);
+  this.targetX = this.x;
+  this.targetY = this.y;
+  this.dirx = 0;
+  this.diry = 0;
+
+  // oyun ici dinamikler
+  this.health = 100;
+  this.coins = 0;
+  this.bullets = 0;
+  this.medkits = 0;
+
+  this.lastHealthReductionAt = Date.now();
+};
+
+// guncelleme ve ekrana yazdirma
+Player.prototype.update = function update() {
+  if (this.health < 0) {
+    this.isDead = true;
+  }
+
+  var targetX = this.targetX + this.dirx * 3;
+  var targetY = this.targetY + this.diry * 3;
+
+  if (!this.game.isSolidTile(targetX, targetY)) {
+    this.targetX = targetX;
+    this.targetY = targetY;
+    this.x = this.x + (this.targetX - this.x) * 1.00;
+    this.y = this.y + (this.targetY - this.y) * 1.00;
+  }
+
+  if (!this.isDead) {
+    for (var i = 0; i < this.game.coins.length; i++) {
+      var coin = this.game.coins[i];
+      if (calculateDistance(this.x, coin.x, this.y,coin.y) < 20) {
+        this.coins += 100;
+        this.score += 10;
+        coin.collected = true;
+      }
+    }
+
+    this.game.coins = this.game.coins.filter(coin => !coin.collected);
+    var now = Date.now();
+    if (calculateDistance(this.x, this.game.circleCenterX, this.y, this.game.circleCenterY)
+      > this.game.circleClosingDistance
+    ) {
+      if (now - this.lastHealthReductionAt > 250) {
+        this.health -= 1;
+        this.lastHealthReductionAt = now;
+      }
+    }
+  }
+};
+
+var Game = function Game(){
+  //console.log('init');
+  this.players = [];
+  this.layers = [
+    [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ]
+  ];
+  this.coins = [new Coin(this)];
+  this.lastCoinCreated = Date.now();
+  //this.lastCircleCollapsedAt = Date.now();
+
+  this.circleClosingDistance = 0;
+  this.circleCenterX = 5 * 64 + Math.floor(Math.random() * 10 * 64);
+  this.circleCenterY = 3 * 64 + Math.floor(Math.random() * 6 * 64);
+
+  this.isStarted = false;
+  //this.winnerId = null;
+}
+
+Game.prototype.isSolidTile = function isSolidTile (x, y) {
+  const startTileX = Math.floor(x / 64);
+  const startTileY = Math.floor(y / 64);
+  return this.layers[0][startTileY][startTileX] === 1;
+}
+
+Game.prototype.addCoin = function addCoin () {
+  this.coins.push(new Coin(this));
+}
+
+Game.prototype.addPlayer = function addPlayer (id) {
+  this.players.push(new Player(this, id));
+}
+
+Game.prototype.update = function update() {
+    if (this.players.length >= 1) {
+      const Function1 = setTimeout(() => {
+        if (this.players.length < 1) {
+          {Function1} } else {
+             this.isStarted = true;
+          }}, 100);
+    }
+
+  if (!this.isStarted)
+    return;
+
+  for (var m = 0; m < this.players.length; m++) {
+    const player = this.players[m];
+      player.update();
+  }
+
+  const now = Date.now();
+  const targetCoin = this.players.length * 2;
+  if (this.coins.length < targetCoin && now - this.lastCoinCreated > 5000) {
+    //console.log('adding coin');
+    this.addCoin();
+    this.lastCoinCreated = Date.now();
+  }
+
+  //if (now - this.lastCircleCollapsedAt > 100) {
+  //  this.circleClosingDistance = Math.max(0, this.circleClosingDistance - 1);
+  //  this.lastCircleCollapsedAt = Date.now();
+  //}
+};
+
+var game = new Game();
+
+const interval = setInterval(() => {
+  if (Date.now() - game.gameEndedAt > 1000) {
+    game = new Game();
+  } else if (game.players.length) {
+    game.update();
+  }
+}, 1000 / 60);
+
+const updateInterval = setInterval(() => {
+  io.sockets.emit('PLAYERS_UPDATE', game.players.map(player => ({
+    id: player.id,
+    name: player.name,
+    isDead: player.isDead,
+    health: player.health,
+    coins: player.coins,
+    medkits: player.medkits,
+    x: player.x,
+    y: player.y,
+    type: player.type,
+    hborder: player.hborder,
+    hbar: player.hbar,
+    nbar: player.nbar,
+    mycolor: player.mycolor,
+    ucolor: player.ucolor,
+    score: player.score
+  })));
+
+  io.sockets.emit('COINS_UPDATE', game.coins.map(coin => ({
+    x: coin.x,
+    y: coin.y,
+  })));
+
+}, 1000 / 60);
+
+io.on('connection', function (socket) {
+  console.log('user connected! ' + socket.id);
+    game.addPlayer(socket.id);
+    console.log('number of players: ' + game.players.length);
+
+  socket.emit('LAYERS_UPDATE', game.layers);
+
+  socket.on('disconnect', function () {
+    socket.emit('disconnected');
+    game.players = game.players.filter(player => player.id !== socket.id)
+    console.log('user disconnected! ' + socket.id);
+    console.log('number of players: ' + game.players.length);
+  });
+
+  socket.on('USE_MATERIAL', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'MEDKIT' && player.medkits > 0) {
+      player.medkits -= 1;
+      player.health = Math.min(100, player.health + 20);
+    }
+  });
+
+  socket.on('PURCHASE', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'MEDKIT' && player.coins >= 50) {
+      player.medkits += 1;
+      player.coins -= 50;
+    }
+  });
+
+  socket.on('MOD', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'MOD') {
+      player.moderator = true;
+      player.hborder = 'blue';
+      player.nbar = 5;
+      player.hbar = 65;
+      player.type = 5;
+    }
+  });
+
+  socket.on('MODITEM', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'FULL' && player.moderator) {
+      player.health += 100;
+    }
+  });
+
+  socket.on('MODITEM', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'LOW_HEALTH' && player.moderator) {
+      player.health -= 50;
+    }
+  });
+
+  socket.on('MODITEM', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'KILL' && player.moderator) {
+      player.isDead = true;
+    }
+  });
+
+  socket.on('MODITEM', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'PINK' && player.moderator) {
+      player.mycolor = 'pink';
+      player.ucolor = 'pink';
+    }
+  });
+
+  socket.on('MODITEM', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'BLUE' && player.moderator) {
+      player.mycolor = 'blue';
+      player.ucolor = 'blue';
+    }
+  });
+
+  socket.on('MODITEM', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'RED' && player.moderator) {
+      player.mycolor = 'red';
+      player.ucolor = 'red';
+    }
+  });
+
+  socket.on('PLAYER_DIRECTION_UPDATE', function (data) {
+    const player = game.players.filter(player => player.id === socket.id)
+    if (data.dirx !== undefined)
+      player[0].dirx = data.dirx;
+
+    if (data.diry !== undefined)
+      player[0].diry = data.diry;
+  });
+
+  socket.on('PLAYER_NAME_UPDATE', function (data) {
+    const player = game.players.filter(player => player.id === socket.id)
+    player[0].name = data.name;
+  });
+});
+
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}

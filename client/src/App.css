@@ -1,0 +1,93 @@
+.App {
+  text-align: center;
+}
+
+#root, html, body, #divs {
+  height: 100%;
+  background: #000;
+}
+
+button {
+  color: #fff;
+  background: #00a9d9;
+  border: 2px solid #ccc;
+  width: 100px;
+  height: 48px;
+  transition-duration: 0.4s;
+}
+
+button:hover {
+  box-shadow: 0px 0px 10px #fff;
+}
+
+input {
+  font-size: 13px;
+  width: 200px;
+  height: 44px;
+}
+
+a {
+  color: #fff;
+  text-decoration: none;
+}
+
+h1 {
+  color: #fff;
+  font-size: 40px;
+  float: center;
+}
+
+h3 {
+  color: #fff;
+}
+
+.start-div {
+  width: 700px;
+  height: 200px;
+  top: 45%;
+  left: 50%;
+  margin-left: -350px;
+  margin-top: -100px;
+  position: fixed;
+  text-align: center;
+}
+
+.circle {
+  width: 100px;
+  height: 100px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .circle {
+    animation: App-logo-spin infinite 1s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
