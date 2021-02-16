@@ -388,7 +388,7 @@ class App extends Component {
     if (this.state.name == 'darknight') {
       alert('Bu isim alınamaz!');
     } else {
-      var socket = io('http://localhost:8000');
+      var socket = io('https://tozmaca.herokuapp.com/');
     };
 
     socket.on('disconnect', () => {
